@@ -1,4 +1,3 @@
-# build_data.py  — robust Excel -> parquet + features
 import re
 from pathlib import Path
 import numpy as np
@@ -10,11 +9,17 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import Normalizer, MinMaxScaler
 import joblib
 
-# ---- paths ----
-
+# --- paths ---
 BASE = Path(__file__).resolve().parent
+
 sum_xlsx = BASE / "datasets/full_Programs_Summury.xlsx"
 det_xlsx = BASE / "datasets/programs_detailed.xlsx"
+OUT_DIR = BASE / "data"
+OUT_DIR.mkdir(exist_ok=True)
+
+print("Summary file:", sum_xlsx)
+print("Detailed file:", det_xlsx)
+# ---- paths ----
 DATASET_SUMMARY = Path("../datasets/full_Programs_Summury.xlsx")
 DATASET_DETAILED = Path("../datasets/programs_detailed.xlsx")  # optional
 OUT_DIR = Path("data"); OUT_DIR.mkdir(exist_ok=True)
