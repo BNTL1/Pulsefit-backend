@@ -13,7 +13,8 @@ import joblib
 # ---- paths ----
 
 BASE = Path(__file__).resolve().parent
-
+sum_xlsx = BASE / "datasets/full_Programs_Summury.xlsx"
+det_xlsx = BASE / "datasets/programs_detailed.xlsx"
 DATASET_SUMMARY = Path("../datasets/full_Programs_Summury.xlsx")
 DATASET_DETAILED = Path("../datasets/programs_detailed.xlsx")  # optional
 OUT_DIR = Path("data"); OUT_DIR.mkdir(exist_ok=True)
