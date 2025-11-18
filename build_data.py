@@ -1,3 +1,4 @@
+# build_data.py  — robust Excel -> parquet + features
 import re
 from pathlib import Path
 import numpy as np
@@ -9,23 +10,22 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import Normalizer, MinMaxScaler
 import joblib
 
-# --- paths ---
-BASE = Path(__file__).resolve().parent
-
-sum_xlsx = BASE / "datasets/full_Programs_Summury.xlsx"
-det_xlsx = BASE / "datasets/programs_detailed.xlsx"
-OUT_DIR = BASE / "data"
-OUT_DIR.mkdir(exist_ok=True)
-
-print("Summary file:", sum_xlsx)
-print("Detailed file:", det_xlsx)
 # ---- paths ----
-DATASET_SUMMARY = Path("../datasets/full_Programs_Summury.xlsx")
-DATASET_DETAILED = Path("../datasets/programs_detailed.xlsx")  # optional
-OUT_DIR = Path("data"); OUT_DIR.mkdir(exist_ok=True)
+
+# base directory of the project (same folder as build_data.py)
+BASE_DIR = Path(__file__).resolve().parent
+
+# correct paths to your Excel files inside the repo
+DATASET_SUMMARY = BASE_DIR / "datasets" / "full_Programs_Summury.xlsx"
+DATASET_DETAILED = BASE_DIR / "datasets" / "programs_detailed.xlsx"  # optional
+
+# output directory
+OUT_DIR = BASE_DIR / "data"
+OUT_DIR.mkdir(exist_ok=True)
 
 print("Summary file:", DATASET_SUMMARY)
 print("Detailed file:", DATASET_DETAILED)
+
 
 # ---- helpers ----
 def clean_text(s: str) -> str:
