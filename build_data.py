@@ -11,8 +11,8 @@ from sklearn.preprocessing import Normalizer, MinMaxScaler
 import joblib
 
 # ---- paths ----
-DATASET_SUMMARY = Path("../datasets/full_Programs_Summury.xlsx")
-DATASET_DETAILED = Path("../datasets/programs_detailed.xlsx")  # optional
+DATASET_SUMMARY = Path("datasets/full_Programs_Summury.xlsx")
+DATASET_DETAILED = Path("datasets/programs_detailed.xlsx")  # optional
 OUT_DIR = Path("data"); OUT_DIR.mkdir(exist_ok=True)
 
 print("Summary file:", DATASET_SUMMARY)
