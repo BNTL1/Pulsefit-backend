@@ -11,21 +11,12 @@ from sklearn.preprocessing import Normalizer, MinMaxScaler
 import joblib
 
 # ---- paths ----
-
-# base directory of the project (same folder as build_data.py)
-BASE_DIR = Path(__file__).resolve().parent
-
-# correct paths to your Excel files inside the repo
-DATASET_SUMMARY = BASE_DIR / "datasets" / "full_Programs_Summury.xlsx"
-DATASET_DETAILED = BASE_DIR / "datasets" / "programs_detailed.xlsx"  # optional
-
-# output directory
-OUT_DIR = BASE_DIR / "data"
-OUT_DIR.mkdir(exist_ok=True)
+DATASET_SUMMARY = Path("../datasets/full_Programs_Summury.xlsx")
+DATASET_DETAILED = Path("../datasets/programs_detailed.xlsx")  # optional
+OUT_DIR = Path("data"); OUT_DIR.mkdir(exist_ok=True)
 
 print("Summary file:", DATASET_SUMMARY)
 print("Detailed file:", DATASET_DETAILED)
-
 
 # ---- helpers ----
 def clean_text(s: str) -> str:
@@ -66,10 +57,29 @@ else:
     summary_df["goal_clean"] = "unknown"
 
 # days_per_week (اختياري)
+# --- days_per_week من شيت #program_days_summary# أو fallback ---
+try:
+    days_sheet = pick_sheet(["#program_days_summary#", "program_days", "days"], 0)
+    days_df = pd.read_excel(xls, sheet_name=days_sheet)
+
+    if {"title", "days"} <= set(days_df.columns):
+        days_df["title"] = days_df["title"].astype(str).str.strip()
+        days_df["days_per_week"] = pd.to_numeric(days_df["days"], errors="coerce").round()
+        prog_days = (
+            days_df[["title", "days_per_week"]]
+            .dropna()
+            .drop_duplicates("title")
+        )
+        summary_df = summary_df.merge(prog_days, on="title", how="left")
+except Exception as e:
+    print("⚠️ days sheet read failed, fallback to summary_df.days_per_week if exists:", e)
+
+# في كل الأحوال تأكد أنها رقمية
 if "days_per_week" in summary_df.columns:
     summary_df["days_per_week"] = pd.to_numeric(summary_df["days_per_week"], errors="coerce")
 else:
     summary_df["days_per_week"] = np.nan
+
 
 # level_list (قد تكون نص/قائمة/NaN)
 def norm_level_list(v):
@@ -89,7 +99,18 @@ def norm_level_list(v):
         if isinstance(x, float) and np.isnan(x): continue
         out.append(str(x).strip().lower())
     return [z for z in out if z]
-summary_df["level_list"] = safe_col(summary_df, "level_list", []).apply(norm_level_list)
+# --- level_list من level_list أو level ---
+if "level_list" in summary_df.columns:
+    src_col = "level_list"
+elif "level" in summary_df.columns:
+    src_col = "level"
+else:
+    src_col = None
+
+if src_col is not None:
+    summary_df["level_list"] = safe_col(summary_df, src_col, []).apply(norm_level_list)
+else:
+    summary_df["level_list"] = [[] for _ in range(len(summary_df))]
 
 # ---- read detailed (optional) & build common_exercises ----
 exercise_blob = pd.DataFrame({"title": summary_df["title"], "common_exercises": ""})
