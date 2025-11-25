@@ -22,8 +22,12 @@ app.add_middleware(
 )
 
 # ========= Load Excel "Detailed" sheet once =========
-DATASETS_DIR = Path("datasets")
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent  # /opt/render/project/src
+DATASETS_DIR = BASE_DIR / "datasets"
 DETAILED_PATH = DATASETS_DIR / "full_Programs_Summury.xlsx"
+
 
 try:
     DETAILED_DF = pd.read_excel(DETAILED_PATH, sheet_name="Detailed")
