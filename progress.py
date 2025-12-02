@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 from typing import Dict, Tuple, Optional
+import os
+import json
 
 # ================================================
 # Firestore client
@@ -14,6 +16,36 @@ except Exception as e:  # library not installed
 
 # In-memory session store still available if you want it
 SESS_STORE: Dict[str, pd.DataFrame] = {}
+
+
+
+
+
+
+from google.cloud import firestore
+from google.oauth2 import service_account
+
+# In-memory store is still there if needed for tests
+SESS_STORE: Dict[str, pd.DataFrame] = {}
+
+
+def get_firestore_client() -> firestore.Client:
+    """
+    Build Firestore client from GOOGLE_CREDENTIALS_JSON env var.
+    This works well on Render.
+    """
+    creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    if not creds_json:
+        raise RuntimeError(
+            "GOOGLE_CREDENTIALS_JSON is not set. "
+            "Add it in Render dashboard with your service account JSON."
+        )
+
+    info = json.loads(creds_json)
+    creds = service_account.Credentials.from_service_account_info(info)
+    project_id = info.get("project_id")
+    return firestore.Client(project=project_id, credentials=creds)
+
 
 
 # ------------------- ingestion (optional, in-memory) -------------------
