@@ -1,10 +1,24 @@
-fastapi
-uvicorn
-pydantic
-numpy
-pandas
-scikit-learn
-joblib
-openpyxl
-pyarrow
-python-dotenv
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+pandas==2.2.2
+numpy==1.26.4
+pyarrow==16.1.0
+openpyxl==3.1.5
+
+scikit-learn==1.4.2
+joblib==1.4.2
+
+# ML models
+sentence-transformers==3.0.1
+transformers==4.44.2
+huggingface_hub==0.24.6
+torch==2.2.3
+torchaudio==2.2.3
+torchvision==0.15.4
+
+# Firestore support
+google-cloud-firestore==2.15.0
+google-auth==2.30.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
