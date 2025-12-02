@@ -79,7 +79,7 @@ def _as_bool(a) -> np.ndarray:
         arr = np.array([bool(x) if isinstance(x, (bool, np.bool_)) else False for x in arr])
     return arr.astype(bool)
 
-def _filter_indices(user_goal: str, user_days: int, user_level: str, days_tolerance: int = 0) -> np.ndarray:
+def _filter_indices(user_goal: str, user_days: int, user_level: str, days_tolerance: int = 1) -> np.ndarray:
     g = str(user_goal).strip().lower()
     lv = level_norm.get(str(user_level).strip().lower(), str(user_level).strip().lower())
     d = int(user_days)
@@ -110,7 +110,7 @@ def _filter_indices(user_goal: str, user_days: int, user_level: str, days_tolera
     return idx[:L]
 
 def recommend(goal: str, days: int, level: str, top_n: int = 10) -> pd.DataFrame:
-    cand_idx = _filter_indices(goal, days, level, days_tolerance=0)
+    cand_idx = _filter_indices(goal, days, level, days_tolerance=1)
     if cand_idx.size == 0:
         return pd.DataFrame(columns=["title","goal","goal_clean","level","level_list","days_per_week","description","cosine_similarity"])
     cand_mat = _sanitize(features[cand_idx])

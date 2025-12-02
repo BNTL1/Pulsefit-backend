@@ -12,7 +12,7 @@ import progress as prg
 
 app = FastAPI(title="PulseFit API")
 
-# إعداد الـCORS
+# ========= CORS =========
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,12 +22,9 @@ app.add_middleware(
 )
 
 # ========= Load Excel "Detailed" sheet once =========
-from pathlib import Path
-
 BASE_DIR = Path(__file__).resolve().parent  # /opt/render/project/src
 DATASETS_DIR = BASE_DIR / "datasets"
 DETAILED_PATH = DATASETS_DIR / "full_Programs_Summury.xlsx"
-
 
 try:
     DETAILED_DF = pd.read_excel(DETAILED_PATH, sheet_name="Detailed")
@@ -35,6 +32,7 @@ try:
 except Exception as e:
     print(f"[Excel] WARNING: could not load {DETAILED_PATH}: {e}")
     DETAILED_DF = None
+
 
 def build_schedule_from_excel(program_title: str) -> dict:
     """
@@ -113,10 +111,12 @@ class Exercise(BaseModel):
     reps: int
     intensity: Optional[int] = None
 
+
 class DayPlan(BaseModel):
     dayIndex: int
     number_of_exercises: int
     exercises: List[Exercise]
+
 
 class Schedule(BaseModel):
     title: str
@@ -126,11 +126,13 @@ class Schedule(BaseModel):
     days_per_week: int
     days: List[DayPlan]
 
+
 class RecommendWithScheduleResponse(BaseModel):
     program_title: str
     schedule: Schedule
 
-# ============ Schedule Endpoint ============
+
+# ============ Health ============
 @app.get("/health")
 def health_check():
     try:
@@ -160,10 +162,11 @@ def health_check():
             "parquet_exists": parquet_exists,
             "npz_exists": npz_exists,
             "program_rows": rows,
-            "features_shape": shape
+            "features_shape": shape,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ============ Recommendation ============
 @app.post("/recommend", response_model=RecommendResponse)
@@ -172,18 +175,23 @@ def api_recommend(req: RecommendRequest):
         df = recommend(req.goal, req.days_per_week, req.level, req.top_n)
         items = []
         for _, r in df.iterrows():
-            items.append(RecommendItem(
-                title=str(r.get("title","")),
-                goal=str(r.get("goal","")),
-                level_list=list(r.get("level_list",[]) or []),
-                days_per_week=int(r["days_per_week"]) if pd.notna(r.get("days_per_week")) else None,
-                cosine_similarity=float(r["cosine_similarity"]),
-                description=str(r.get("description",""))
-            ))
+            items.append(
+                RecommendItem(
+                    title=str(r.get("title", "")),
+                    goal=str(r.get("goal", "")),
+                    level_list=list(r.get("level_list", []) or []),
+                    days_per_week=int(r["days_per_week"])
+                    if pd.notna(r.get("days_per_week"))
+                    else None,
+                    cosine_similarity=float(r["cosine_similarity"]),
+                    description=str(r.get("description", "")),
+                )
+            )
         return RecommendResponse(items=items)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
+
 # ============ Recommendation with schedule ============
 @app.post("/recommend_with_schedule", response_model=RecommendWithScheduleResponse)
 def api_recommend_with_schedule(req: RecommendRequest):
@@ -199,7 +207,9 @@ def api_recommend_with_schedule(req: RecommendRequest):
         program_title = str(top.get("title", ""))
 
         if not program_title:
-            raise HTTPException(status_code=500, detail="Top recommendation has no title")
+            raise HTTPException(
+                status_code=500, detail="Top recommendation has no title"
+            )
 
         # 3) Build schedule from Excel based on that title
         schedule_dict = build_schedule_from_excel(program_title)
@@ -216,49 +226,100 @@ def api_recommend_with_schedule(req: RecommendRequest):
 
 
 # ============ Progress Tracking ============
+
 @app.post("/progress/ingest", response_model=IngestResponse)
 def api_ingest(req: IngestRequest):
     try:
-        sdf = pd.DataFrame([{"user_id":req.user_id, "date":s.date, "effort":s.effort} for s in req.sessions])
+        # build DataFrame with the fields used by the engine
+        sdf = pd.DataFrame(
+            [
+                {"user_id": req.user_id, "date": s.date, "effort": s.effort}
+                for s in req.sessions
+            ]
+        )
+
         before_weeks = 0
         if req.user_id in prg.SESS_STORE:
-            before_weeks = prg.level_from_sessions(prg.SESS_STORE[req.user_id], req.planned_per_week)["week"].nunique()
+            before_weeks = prg.level_from_sessions(
+                prg.SESS_STORE[req.user_id], req.planned_per_week
+            )["week"].nunique()
+
         prg.ingest_sessions(req.user_id, req.planned_per_week, sdf)
-        after_weeks = prg.level_from_sessions(prg.SESS_STORE[req.user_id], req.planned_per_week)["week"].nunique()
+
+        after_weeks = prg.level_from_sessions(
+            prg.SESS_STORE[req.user_id], req.planned_per_week
+        )["week"].nunique()
+
         return IngestResponse(weeks_added=max(0, after_weeks - before_weeks))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/progress/compute", response_model=ComputeProgressResponse)
 def api_compute(req: ComputeProgressRequest):
     try:
-        out, _ = prg.compute_progress(req.user_id, decision_period_weeks=req.decision_period_weeks)
+        out, _ = prg.compute_progress_from_firestore(
+    req.user_id,
+    decision_period_weeks=req.decision_period_weeks,
+)
+
         return ComputeProgressResponse(**out)
+    except ValueError as e:
+        # raised when user has no sessions in SESS_STORE
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ✅ NEW: convenient GET endpoint for progress
+@app.get("/progress/{user_id}", response_model=ComputeProgressResponse)
+def api_get_progress(user_id: str, decision_period_weeks: int = 4):
+    """
+    Read-only progress endpoint.
+    Same output as POST /progress/compute, but easier to test in Postman.
+    """
+    try:
+        out, _ = prg.compute_progress_from_firestore(
+    user_id,
+    decision_period_weeks=decision_period_weeks,
+)
+
+        return ComputeProgressResponse(**out)
+    except ValueError as e:
+        # happens when user has no sessions in memory
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/progress/trajectory", response_model=TrajectoryResponse)
 def api_traj(req: TrajectoryRequest):
     try:
-        _, prog = prg.compute_progress(req.user_id, decision_period_weeks=4)
+        _, prog = prg.compute_progress_from_firestore(
+    req.user_id,
+    decision_period_weeks=4,
+)
+
         if req.last_n_weeks > 0:
             prog = prog.tail(req.last_n_weeks)
+
         rows = []
         for _, r in prog.iterrows():
-            rows.append(TrajectoryRow(
-                week=str(r["week"])[:10],
-                days_trained=int(r["days_trained"]),
-                LevelScore=float(r["LevelScore"]),
-                Readiness=float(r["Readiness"]),
-                cum_readiness_mean=float(r["cum_readiness_mean"]),
-                progress_bar=float(r["progress_bar"]),
-                is_decision_week=bool(r["is_decision_week"]),
-                level_final=str(r["level_final"]),
-                level_progressive=str(r["level_progressive"])
-            ))
+            rows.append(
+                TrajectoryRow(
+                    week=str(r["week"])[:10],
+                    days_trained=int(r["days_trained"]),
+                    LevelScore=float(r["LevelScore"]),
+                    Readiness=float(r["Readiness"]),
+                    cum_readiness_mean=float(r["cum_readiness_mean"]),
+                    progress_bar=float(r["progress_bar"]),
+                    is_decision_week=bool(r["is_decision_week"]),
+                    level_final=str(r["level_final"]),
+                    level_progressive=str(r["level_progressive"]),
+                )
+            )
         return TrajectoryResponse(weeks=rows)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-
-
