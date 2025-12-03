@@ -13,7 +13,7 @@ joblib==1.4.2
 sentence-transformers==3.0.1
 transformers==4.44.2
 huggingface_hub==0.24.6
-torch==2.2.3
+torch==2.2.1
 torchaudio==2.2.3
 torchvision==0.15.4
 
