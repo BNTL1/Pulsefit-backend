@@ -1,51 +1,55 @@
+import os
+import json
 import pandas as pd
 import numpy as np
 from typing import Dict, Tuple, Optional
-import os
-import json
 
 # ================================================
 # Firestore client
 # ================================================
 try:
     from google.cloud import firestore  # uses google-cloud-firestore
+    from google.oauth2 import service_account
     _FS_ERROR: Optional[Exception] = None
 except Exception as e:  # library not installed
     firestore = None
+    service_account = None
     _FS_ERROR = e
 
 # In-memory session store still available if you want it
 SESS_STORE: Dict[str, pd.DataFrame] = {}
 
 
-
-
-
-
-from google.cloud import firestore
-from google.oauth2 import service_account
-
-# In-memory store is still there if needed for tests
-SESS_STORE: Dict[str, pd.DataFrame] = {}
-
-
-def get_firestore_client() -> firestore.Client:
+def get_firestore_client():
     """
-    Build Firestore client from GOOGLE_CREDENTIALS_JSON env var.
-    This works well on Render.
+    Create a Firestore client.
+
+    - On Render: uses GOOGLE_CREDENTIALS_JSON (service account JSON in env)
+    - Locally (if you want): will fall back to default firestore.Client()
+      if GOOGLE_CREDENTIALS_JSON is not set.
     """
-    creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
-    if not creds_json:
+    if firestore is None:
         raise RuntimeError(
-            "GOOGLE_CREDENTIALS_JSON is not set. "
-            "Add it in Render dashboard with your service account JSON."
+            f"Firestore client is not available: {_FS_ERROR}. "
+            "Install 'google-cloud-firestore' and configure credentials."
         )
 
-    info = json.loads(creds_json)
-    creds = service_account.Credentials.from_service_account_info(info)
-    project_id = info.get("project_id")
-    return firestore.Client(project=project_id, credentials=creds)
+    creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
 
+    # If env var is present → use it (Render / production)
+    if creds_json:
+        if service_account is None:
+            raise RuntimeError(
+                "google.oauth2.service_account not available. "
+                "Make sure 'google-auth' is installed."
+            )
+        info = json.loads(creds_json)
+        creds = service_account.Credentials.from_service_account_info(info)
+        project_id = info.get("project_id")
+        return firestore.Client(project=project_id, credentials=creds)
+
+    # Otherwise fall back to ADC (good for local dev with gcloud auth)
+    return firestore.Client()
 
 
 # ------------------- ingestion (optional, in-memory) -------------------
@@ -72,13 +76,8 @@ def load_sessions_from_firestore(user_id: str) -> pd.DataFrame:
       users/{user_id}/sessions/{sessionDoc}
     Expects each doc to have at least 'date' (Timestamp) and 'effort' (str).
     """
-    if firestore is None:
-        raise RuntimeError(
-            f"Firestore client is not available: {_FS_ERROR}. "
-            "Install 'google-cloud-firestore' and configure credentials."
-        )
+    client = get_firestore_client()  
 
-    client = firestore.Client()
     col_ref = client.collection("users").document(user_id).collection("sessions")
 
     docs = list(col_ref.stream())
